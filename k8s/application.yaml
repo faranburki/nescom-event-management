@@ -1,0 +1,142 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: nescom
+spec:
+  selector:
+    app: backend
+  ports:
+  - name: http
+    port: 3000
+    targetPort: 3000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: nescom
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+      - name: backend
+        image: nescom-backend:__TAG__
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 3000
+        env:
+        - name: PGHOST
+          value: postgres
+        - name: PGUSER
+          valueFrom:
+            secretKeyRef:
+              name: database-credentials
+              key: POSTGRES_USER
+        - name: PGDATABASE
+          valueFrom:
+            secretKeyRef:
+              name: database-credentials
+              key: POSTGRES_DB
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: database-credentials
+              key: POSTGRES_PASSWORD
+        resources:
+          requests:
+            cpu: 100m
+            memory: 96Mi
+          limits:
+            cpu: 500m
+            memory: 192Mi
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        readinessProbe:
+          httpGet:
+            path: /api/health
+            port: 3000
+          periodSeconds: 5
+          timeoutSeconds: 3
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 3000
+          periodSeconds: 5
+          timeoutSeconds: 3
+        startupProbe:
+          httpGet:
+            path: /api/health
+            port: 3000
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: nescom
+spec:
+  selector:
+    app: frontend
+  ports:
+  - name: http
+    port: 80
+    targetPort: 80
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: nescom
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+      - name: frontend
+        image: nescom-frontend:__TAG__
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            cpu: 50m
+            memory: 32Mi
+          limits:
+            cpu: 250m
+            memory: 64Mi
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 80
+          periodSeconds: 5
+          timeoutSeconds: 3
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 80
+          periodSeconds: 5
+          timeoutSeconds: 3
